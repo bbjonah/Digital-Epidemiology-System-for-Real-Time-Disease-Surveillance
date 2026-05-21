@@ -1,6 +1,6 @@
 # Digital Epidemiology System for Real-Time Disease Surveillance
 
-![alt text](image.jpg)
+![alt text](outputs/chart2.jpg)
 
 ## Overview
 
