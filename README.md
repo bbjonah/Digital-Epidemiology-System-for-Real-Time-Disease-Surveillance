@@ -1,5 +1,7 @@
 # Digital Epidemiology System for Real-Time Disease Surveillance
 
+![alt text](image.jpg)
+
 ## Overview
 
 The Digital Epidemiology System for Real-Time Disease Surveillance is an AI-powered public health monitoring platform designed to track, analyze, visualize, and predict disease outbreaks in real time.
