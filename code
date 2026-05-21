@@ -1,0 +1,284 @@
+# =========================================================
+# DIGITAL EPIDEMIOLOGY SYSTEM FOR REAL-TIME DISEASE SURVEILLANCE
+# =========================================================
+# Author: Your Name
+# Description:
+# A complete real-time disease surveillance system using:
+# - FastAPI
+# - Pandas
+# - Machine Learning
+# - Plotly Dashboard
+# - Geospatial Mapping
+# - Real-Time Alert Detection
+# =========================================================
+
+# =========================
+# IMPORT LIBRARIES
+# =========================
+
+import pandas as pd
+import numpy as np
+from fastapi import FastAPI
+from pydantic import BaseModel
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+from sklearn.preprocessing import LabelEncoder
+import plotly.express as px
+import uvicorn
+from datetime import datetime
+import warnings
+
+warnings.filterwarnings("ignore")
+
+# =========================
+# LOAD DATASET
+# =========================
+
+df = pd.read_csv("digital_epidemiology_synthetic_dataset.csv")
+
+print(df.head())
+
+# =========================
+# DATA PREPROCESSING
+# =========================
+
+# Encode categorical features
+le_disease = LabelEncoder()
+le_state = LabelEncoder()
+le_gender = LabelEncoder()
+le_severity = LabelEncoder()
+le_status = LabelEncoder()
+
+df["disease_encoded"] = le_disease.fit_transform(df["disease"])
+df["state_encoded"] = le_state.fit_transform(df["state"])
+df["gender_encoded"] = le_gender.fit_transform(df["gender"])
+df["severity_encoded"] = le_severity.fit_transform(df["severity_level"])
+df["status_encoded"] = le_status.fit_transform(df["status"])
+
+# =========================
+# FEATURE SELECTION
+# =========================
+
+X = df[
+    [
+        "patient_age",
+        "temperature_celsius",
+        "humidity_percent",
+        "risk_score",
+        "state_encoded",
+        "gender_encoded",
+        "severity_encoded",
+    ]
+]
+
+y = df["disease_encoded"]
+
+# =========================
+# TRAIN TEST SPLIT
+# =========================
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+# =========================
+# TRAIN MACHINE LEARNING MODEL
+# =========================
+
+model = RandomForestClassifier(
+    n_estimators=200,
+    random_state=42
+)
+
+model.fit(X_train, y_train)
+
+# =========================
+# MODEL EVALUATION
+# =========================
+
+y_pred = model.predict(X_test)
+
+print("\nMODEL PERFORMANCE")
+print(classification_report(y_test, y_pred))
+
+# =========================
+# OUTBREAK DETECTION LOGIC
+# =========================
+
+def detect_outbreak(dataframe):
+
+    outbreak_threshold = 50
+
+    outbreak_summary = (
+        dataframe.groupby(["state", "disease"])
+        .size()
+        .reset_index(name="cases")
+    )
+
+    alerts = outbreak_summary[
+        outbreak_summary["cases"] > outbreak_threshold
+    ]
+
+    return alerts
+
+alerts = detect_outbreak(df)
+
+print("\nOUTBREAK ALERTS")
+print(alerts)
+
+# =========================
+# REAL-TIME DASHBOARD
+# =========================
+
+fig = px.scatter_mapbox(
+    df,
+    lat="latitude",
+    lon="longitude",
+    color="disease",
+    size="risk_score",
+    hover_name="state",
+    hover_data=["severity_level", "status"],
+    zoom=4,
+    height=700,
+    title="Real-Time Disease Surveillance Map"
+)
+
+fig.update_layout(
+    mapbox_style="open-street-map"
+)
+
+fig.show()
+
+# =========================
+# TIME SERIES ANALYSIS
+# =========================
+
+df["report_timestamp"] = pd.to_datetime(df["report_timestamp"])
+
+daily_cases = (
+    df.groupby(df["report_timestamp"].dt.date)
+    .size()
+    .reset_index(name="cases")
+)
+
+line_chart = px.line(
+    daily_cases,
+    x="report_timestamp",
+    y="cases",
+    title="Daily Disease Cases Trend"
+)
+
+line_chart.show()
+
+# =========================
+# FASTAPI BACKEND
+# =========================
+
+app = FastAPI(
+    title="Digital Epidemiology API",
+    version="1.0"
+)
+
+# =========================
+# INPUT SCHEMA
+# =========================
+
+class DiseaseInput(BaseModel):
+
+    patient_age: int
+    temperature_celsius: float
+    humidity_percent: float
+    risk_score: float
+    state: str
+    gender: str
+    severity_level: str
+
+# =========================
+# ROOT ROUTE
+# =========================
+
+@app.get("/")
+def home():
+
+    return {
+        "message": "Digital Epidemiology System Running"
+    }
+
+# =========================
+# PREDICTION ROUTE
+# =========================
+
+@app.post("/predict")
+
+def predict_disease(data: DiseaseInput):
+
+    state_encoded = le_state.transform([data.state])[0]
+    gender_encoded = le_gender.transform([data.gender])[0]
+    severity_encoded = le_severity.transform(
+        [data.severity_level]
+    )[0]
+
+    input_data = np.array([[
+        data.patient_age,
+        data.temperature_celsius,
+        data.humidity_percent,
+        data.risk_score,
+        state_encoded,
+        gender_encoded,
+        severity_encoded
+    ]])
+
+    prediction = model.predict(input_data)[0]
+
+    disease_name = le_disease.inverse_transform(
+        [prediction]
+    )[0]
+
+    return {
+        "predicted_disease": disease_name,
+        "timestamp": str(datetime.now())
+    }
+
+# =========================
+# OUTBREAK ALERT API
+# =========================
+
+@app.get("/alerts")
+
+def outbreak_alerts():
+
+    outbreak_data = detect_outbreak(df)
+
+    return outbreak_data.to_dict(orient="records")
+
+# =========================
+# CASE STATISTICS API
+# =========================
+
+@app.get("/statistics")
+
+def statistics():
+
+    stats = (
+        df.groupby("disease")
+        .size()
+        .reset_index(name="total_cases")
+    )
+
+    return stats.to_dict(orient="records")
+
+# =========================
+# RUN SERVER
+# =========================
+
+if __name__ == "__main__":
+
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=8000
+    )
